@@ -3,6 +3,7 @@ package com.diploma.orderservice.service;
 import com.diploma.orderservice.dto.InventoryResponse;
 import com.diploma.orderservice.dto.OrderLineItemDto;
 import com.diploma.orderservice.dto.OrderRequest;
+import com.diploma.orderservice.event.OrderPlacedEvent;
 import com.diploma.orderservice.model.Order;
 import com.diploma.orderservice.model.OrderLineItem;
 import com.diploma.orderservice.repository.OrderRepository;
@@ -10,6 +11,7 @@ import io.micrometer.tracing.Span;
 import io.micrometer.tracing.Tracer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -29,6 +31,8 @@ public class OrderService {
     private final OrderRepository orderRepository;
 
     private final Tracer tracer;
+
+    private final KafkaTemplate<String, OrderPlacedEvent> kafkaTemplate;
 
     public String placeOrder(OrderRequest orderRequest) {
         Order order = new Order();
@@ -61,6 +65,7 @@ public class OrderService {
 
             if (allProductsInStock) {
                 orderRepository.save(order);
+                kafkaTemplate.send("notificationTopic", new OrderPlacedEvent(order.getOrderNumber()));
                 log.info("Oder Placed Successfully");
                 return "Oder Placed Successfully";
             } else {
